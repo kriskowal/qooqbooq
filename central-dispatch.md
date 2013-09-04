@@ -114,9 +114,9 @@ var alice = {
         if (connections.has(source)) {
             if (!connections.get(source).isPending()) {
                 var deferred = Q.defer();
-                deferred.resolve(remote);
+                connections.set(source, deferred);
             }
-            connections.set(source).resolve(remote);
+            connections.get(source).resolve(remote);
         }
         if (!connections.has(target)) {
             connection.set(target, Q.defer());
