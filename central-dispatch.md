@@ -63,7 +63,7 @@ charlie = temp;
 We use a deferred promise as a temporary place holder for the opposite
 side of the connection.
 
-## A more rigorous protocol
+## Open ended dispatch of arbitrary pairs
 
 For a more rigorous protocol, we will need an alice object to serve as
 an intermediary.  Each client will declare itself and its intended
@@ -75,7 +75,8 @@ var bob = {};
 var charlie = alice.invoke("connect", "Bob", "Charlie", bob);
 ```
 
-Alice will track connections by name and bridge as requested.
+Alice will track up to 100 named connections by name and bridge as
+requested.
 
 ```javascript
 var LruMap = require("collections/lru-map");
@@ -86,10 +87,7 @@ var alice = {
     connect: function (source, target, remote) {
         if (connections.has(source)) {
             connection.get(source).resolve(remote);
-            // forget, so we can reconnect
-            connections.delete(source);
         }
-
         if (!connections.has(target)) {
             connection.set(target, Q.defer());
         }
@@ -100,5 +98,31 @@ var alice = {
 server.on("connection", function (port) {
     Connection(port, alice);
 });
+```
+
+### Adding the ability to reconnect
+
+The previous example has a fatal flaw.  A connection might break and the
+client would reconnect, but since the connection promise has already
+been resolved, all subsequent reconnections would be ignored.  To fix
+this, we check whether the client has previously connected and reset our
+entry so all subsequent connections get routed properly.
+
+```javascript
+var alice = {
+    connect: function (source, target, remote) {
+        if (connections.has(source)) {
+            if (!connections.get(source).isPending()) {
+                var deferred = Q.defer();
+                deferred.resolve(remote);
+            }
+            connections.set(source).resolve(remote);
+        }
+        if (!connections.has(target)) {
+            connection.set(target, Q.defer());
+        }
+        return connections.get(target).promise;
+    }
+};
 ```
 
