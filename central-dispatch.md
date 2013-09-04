@@ -63,7 +63,7 @@ charlie = temp;
 We use a deferred promise as a temporary place holder for the opposite
 side of the connection.
 
-## Open ended dispatch of arbitrary pairs
+### Open ended dispatch of arbitrary pairs
 
 For a more rigorous protocol, we will need an alice object to serve as
 an intermediary.  Each client will declare itself and its intended
