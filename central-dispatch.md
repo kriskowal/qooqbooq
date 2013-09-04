@@ -1,4 +1,3 @@
-
 # Central Dispatch
 
 Q-Connection can be used to create a bidirectional communication channel
@@ -22,7 +21,7 @@ Charlie:
 ```javascript
 var charlie = {};
 var alicePort = new WebSocket(aliceAddress);
-var bobPromise = Connection(bob, charlie);
+var bobPromise = Connection(alicePort, charlie);
 ```
 
 Alice will receive their connections and bridge them.  For the
