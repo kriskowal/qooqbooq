@@ -1,4 +1,5 @@
-# Central Dispatch
+
+# Bridging and Central Dispatch
 
 Q-Connection can be used to create a bidirectional communication channel
 between third parties. Consider this scenario. There is a central

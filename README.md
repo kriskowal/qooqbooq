@@ -40,17 +40,19 @@ All of this is likely to change when the war begins.
 1. Proxies for Arrays
 1. Recipe: A Module Loader
 1. Recipe: Map and Reduce
-1. Streams
+1. [Streams](streams.md)
 1. File System
 1. HTTP Request and Response Cycle
 1. Joey
 1. Promises for Remote Objects
+    1. [Bridging and Central Dispatch](central-dispatch.md)
 1. On Object Capabilities
 1. Recipe: An Secure Escrow Exchange
-1. The Design of a Promise Implementation
+1. [The Design of a Promise Implementation](design.md)
 1. The Point of Promises
     1. Epiphany: The Pyramid of Doom or the Chain of Fate
-    1. Epiphany: Propagating Exceptions
+    1. Epiphany: Propagating Exceptions (by way of
+       http://domenic.me/2012/10/14/youre-missing-the-point-of-promises/)
     1. Epiphany: Remote Objects and Pipelining
     1. Epiphany: Mutually Suspicious Objects
     1. Epiphany: Asynchronous Debugger
