@@ -6,12 +6,13 @@ date: 2011-05-10
 
 # On Designing a Promise Library
 
-This document is intended to explain how promises work and why this
-implementation works its particular way by building a promise library
-incrementally and reviewing all of its major design decisions.  This is
-intended to leave the reader at liberty to experiment with variations
-of this implementation that suit their own requirements, without missing
-any important details.
+This chapter explains how promises work and to illuminate some of the
+design decisions behind the Q implementation by building a promise
+library incrementally and reviewing all of its major design decisions.
+This is intended to leave the reader at liberty to experiment with
+variations of this implementation that suit their own requirements,
+without missing any important details, or merely to provide a deeper
+understanding of promises.
 
 ---
 
@@ -47,13 +48,15 @@ var maybeOneOneSecondLater = function (callback, errback) {
 };
 ```
 
-There are other approaches, variations on providing the error as an argument
-to the callback, either by position or a distinguished sentinel value.
+There are other approaches, variations on providing the error as an
+argument to the callback, either by position or a distinguished sentinel
+value.  There are even many interfaces that return an object or take an
+object argument that carries `onsuccess` and `onerror` callbacks.
 However, none of these approaches actually model thrown exceptions.  The
 purpose of exceptions and try/catch blocks is to postpone the explicit
-handling of exceptions until the program has returned to a point where it
-makes sense to attempt to recover.  There needs to be some mechanism for
-implicitly propagating exceptions if they are not handled.
+handling of exceptions until the program has returned to a point where
+it makes sense to attempt to recover.  There needs to be some mechanism
+for implicitly propagating exceptions if they are not handled.
 
 
 ## Promises
@@ -129,7 +132,7 @@ var maybeOneOneSecondLater = function () {
 This is already doing enough that it would be useful to break it into a
 utility function.  A deferred is an object with two parts: one for registering
 observers and another for notifying observers of resolution.
-(see design/q0.js)
+(see [design 0](design/q0.js))
 
 ```javascript
 var defer = function () {
@@ -205,7 +208,7 @@ which won.  Hereafter, all examples will ignore rather than fault on multiple
 resolution.
 
 At this point, defer can handle both multiple resolution and multiple
-observation. (see design/q1.js)
+observation. (see [design 1](design/q1.js))
 
 ---
 
@@ -230,7 +233,7 @@ garbage collector to quickly dispose of used promise objects.
 
 Also, there are a variety of ways to distinguish a promise from other values.
 The most obvious and strongest distinction is to use prototypical inheritance.
-(design/q2.js)
+(see [design 2](design/q2.js))
 
 ```javascript
 var Promise = function () {
@@ -276,7 +279,7 @@ CommonJS/Promises/A establishes the use of "then" to distinguish its brand of
 promises from other values.  This has the disadvantage of failing to
 distinguish other objects that just happen to have a "then" method.  In
 practice, this is not a problem, and the minor variations in "thenable"
-implementations in the wild are manageable.
+implementations in the wild are manageable (see [design 3](design/q3)).
 
 ```javascript
 var isPromise = function (value) {
@@ -370,7 +373,7 @@ is straightforward.  This is a promise that immediately informs
 any observers that the value has already been fulfilled.
 
 ```javascript
-var ref = function (value) {
+var fulfilled = function (value) {
     return {
         then: function (callback) {
             callback(value);
@@ -383,7 +386,7 @@ This method can be altered to coerce the argument into a promise
 regardless of whether it is a value or a promise already.
 
 ```javascript
-var ref = function (value) {
+var cast = function (value) {
     if (value && typeof value.then === "function")
         return value;
     return {
@@ -396,16 +399,16 @@ var ref = function (value) {
 
 Now, we need to start altering our "then" methods so that they
 return promises for the return value of their given callback.
-The "ref" case is simple.  We'll coerce the return value of the
+The "cast" case is simple.  We'll coerce the return value of the
 callback to a promise and return that immediately.
 
 ```javascript
-var ref = function (value) {
+var cast = function (value) {
     if (value && typeof value.then === "function")
         return value;
     return {
         then: function (callback) {
-            return ref(callback(value));
+            return cast(callback(value));
         }
     };
 };
@@ -420,7 +423,7 @@ Furthermore, the "resolve" method needs to handle the case where the
 resolution is itself a promise to resolve later.  This is accomplished by
 changing the resolution value to a promise.  That is, it implements a "then"
 method, and can either be a promise returned by "defer" or a promise returned
-by "ref".  If it's a "ref" promise, the behavior is identical to before: the
+by "cast".  If it's a "cast" promise, the behavior is identical to before: the
 callback is called immediately by "then(callback)".  If it's a "defer"
 promise, the callback is passed forward to the next promise by calling
 "then(callback)".  Thus, your callback is now observing a new promise for a
@@ -433,7 +436,7 @@ var defer = function () {
     return {
         resolve: function (_value) {
             if (pending) {
-                value = ref(_value); // values wrapped in a promise
+                value = cast(_value); // values wrapped in a promise
                 for (var i = 0, ii = pending.length; i < ii; i++) {
                     var callback = pending[i];
                     value.then(callback); // then called instead
@@ -464,21 +467,22 @@ var defer = function () {
 
 The implementation at this point uses "thenable" promises and separates the
 "promise" and "resolve" components of a "deferred".
-(see design/q4.js)
+(see [design 4](design/q4.js))
 
 
 ## Error Propagation
 
-To achieve error propagation, we need to reintroduce errbacks.  We use a new
-type of promise, analogous to a "ref" promise, that instead of informing a
-callback of the promise's fulfillment, it will inform the errback of its
-rejection and the reason why.
+To achieve error propagation, we need to reintroduce errbacks.  We use a
+new type of promise, analogous to a fulfilled promise, that instead of
+informing a callback of the promise's fulfillment, it will inform the
+errback of its rejection and the reason why
+(see [design 5](design/q5.js)).
 
 ```javascript
 var reject = function (reason) {
     return {
         then: function (callback, errback) {
-            return ref(errback(reason));
+            return cast(errback(reason));
         }
     };
 };
@@ -488,10 +492,10 @@ The simplest way to see this in action is to observe the resolution of
 an immediate rejection.
 
 ```javascript
-reject("Meh.").then(function (value) {
+reject(new Error("Meh.")).then(function (value) {
     // we never get here
 }, function (reason) {
-    // reason === "Meh."
+    // reason.message === "Meh."
 });
 ```
 
@@ -505,7 +509,7 @@ var maybeOneOneSecondLater = function (callback, errback) {
         if (Math.random() < .5) {
             result.resolve(1);
         } else {
-            result.resolve(reject("Can't provide one."));
+            result.resolve(reject(new Error("Can't provide one.")));
         }
     }, 1000);
     return result.promise;
@@ -522,7 +526,7 @@ var defer = function () {
     return {
         resolve: function (_value) {
             if (pending) {
-                value = ref(_value);
+                value = cast(_value);
                 for (var i = 0, ii = pending.length; i < ii; i++) {
                     // apply the pending arguments to "then"
                     value.then.apply(value, pending[i]);
@@ -565,7 +569,7 @@ var defer = function () {
     return {
         resolve: function (_value) {
             if (pending) {
-                value = ref(_value);
+                value = cast(_value);
                 for (var i = 0, ii = pending.length; i < ii; i++) {
                     value.then.apply(value, pending[i]);
                 }
@@ -602,10 +606,10 @@ var defer = function () {
 };
 ```
 
-At this point, we've achieved composition and implicit error propagation.  We
-can now very easily create promises from other promises either in serial or in
-parallel (see design/q6.js).  This example creates a promise for the eventual
-sum of promised values.
+At this point, we've achieved composition and implicit error
+propagation.  We can now very easily create promises from other promises
+either in serial or in parallel (see [design 6](design/q6.js)).  This
+example creates a promise for the eventual sum of promised values.
 
 ```javascript
 promises.reduce(function (accumulating, promise) {
@@ -614,12 +618,54 @@ promises.reduce(function (accumulating, promise) {
             return accumulated + value;
         });
     });
-}, ref(0)) // start with a promise for zero, so we can call then on it
+}, cast(0)) // start with a promise for zero, so we can call then on it
            // just like any of the combined promises
 .then(function (sum) {
     // the sum is here
 });
 ```
+
+
+## Aggregating promises
+
+Using `reduce` to compose arrays of promises is often useful and
+appropriate, but it has a curious behavior which is not always
+desirable.  If one of the promises is pending, even if any of the
+subsequent promises has been rejected, the aggregate promise will
+also be pending.  Every promise library should provide an `all` method,
+and in fact almost all asynchronous programming libraries promise-or-not
+provide a similar facility for parallel tasks.
+
+```javascript
+var all = function (promises) {
+    var countDown = 0;
+    var result = defer();
+    var values = [];
+    promises.forEach(function (promise, index) {
+        ++countDown;
+        cast(promise).then(function (value) {
+            values[index] = value;
+            if (--countDown === 0) {
+                deferred.resolve(values);
+            }
+        }, function (reason) {
+            deferred.reject(reason);
+        });
+    });
+    if (countDown === 0) {
+        result.resolve(values);
+    }
+    return result.promise;
+};
+
+all([jobA(), jobB()])
+.then(function (results) {
+    /// results[0], results[1]
+});
+```
+
+The `all` function guarantees that the resulting promise will be
+rejected at the **first** sign of trouble.
 
 
 ## Safety and Invariants
@@ -646,11 +692,11 @@ quickly be fulfilled with the value of 10.  It depends on whether foob()
 resolves in the same turn of the event loop (issuing its callback on the same
 stack immediately) or in a future turn.  If the callback is delayed to a
 future turn, it will allways succeed.
-(see design/q7.js)
+(see [design 7](design/q7.js))
 
 ```javascript
-var enqueue = function (callback) {
-    //process.nextTick(callback); // NodeJS
+var asap = function (callback) {
+    //process.nextTick(callback); // Node.js
     setTimeout(callback, 1); // Naïve browser solution
 };
 
@@ -659,10 +705,10 @@ var defer = function () {
     return {
         resolve: function (_value) {
             if (pending) {
-                value = ref(_value);
+                value = cast(_value);
                 for (var i = 0, ii = pending.length; i < ii; i++) {
                     // XXX
-                    enqueue(function () {
+                    asap(function () {
                         value.then.apply(value, pending[i]);
                     });
                 }
@@ -688,7 +734,7 @@ var defer = function () {
                     pending.push([callback, errback]);
                 } else {
                     // XXX
-                    enqueue(function () {
+                    asap(function () {
                         value.then(callback, errback);
                     });
                 }
@@ -698,14 +744,14 @@ var defer = function () {
     };
 };
 
-var ref = function (value) {
+var cast = function (value) {
     if (value && value.then)
         return value;
     return {
         then: function (callback) {
             var result = defer();
             // XXX
-            enqueue(function () {
+            asap(function () {
                 result.resolve(callback(value));
             });
             return result.promise;
@@ -718,7 +764,7 @@ var reject = function (reason) {
         then: function (callback, errback) {
             var result = defer();
             // XXX
-            enqueue(function () {
+            asap(function () {
                 result.resolve(errback(reason));
             });
             return result.promise;
@@ -726,6 +772,23 @@ var reject = function (reason) {
     };
 };
 ```
+
+> The `asap` function for a promise library should delay to a future
+> turn, but should not delay any longer than it has to.  For a rigorous
+> implementation of `asap` designed to unroll microtasks as quickly as
+> possible in Node.js and the gammut of web browsers, see [ASAP][].
+> This is slightly different than [setImmediate][], which solves the
+> problem of delaying to a separate event, but yields to rendering or IO
+> events.  It is debatable whether a promise library should use high or
+> low priority tasks.  If they use a high priority, they will starve any
+> pending IO tasks like accepting incoming connections or input, which
+> can be good since pending computational tasks are a good signal that
+> the process has work to do and prevents the process from
+> overcommitting.  However, allowing rendering to be interleaved between
+> computational tasks may be important to keep smooth animations.
+
+[ASAP]: https://github.com/kriskowal/asap
+[setImmediate]: https://github.com/noblejs/setimmediate
 
 There remains one safty issue, though.  Given that any object that implements
 "then" is treated as a promise, anyone who calls "then" directly is at risk
@@ -767,12 +830,12 @@ var when = function (value, _callback, _errback) {
         }
     };
 
-    enqueue(function () {
-        ref(value).then(function (value) {
+    asap(function () {
+        cast(value).then(function (value) {
             if (done)
                 return;
             done = true;
-            result.resolve(ref(value).then(callback, errback));
+            result.resolve(cast(value).then(callback, errback));
         }, function (reason) {
             if (done)
                 return;
@@ -788,7 +851,7 @@ var when = function (value, _callback, _errback) {
 At this point, we have the means to protect ourselves against several
 surprises including unnecessary non-deterministic control-flow in the course
 of an event and broken callback and errback control-flow invariants.
-(see design/q7.js)
+(see [design 7](design/q7.js))
 
 
 ## Message Passing
@@ -880,13 +943,13 @@ a value which will be forwarded to the callback.  The handlers do not receive
 their own name, but the fallback does receive the operator name so it can
 route it.  Otherwise, arguments are passed through.
 
-For the "ref" method, we still only coerce values that are not already
+For the "cast" method, we still only coerce values that are not already
 promises.  We also coerce "thenables" into "promiseSend" promises.
 We provide methods for basic interaction with a fulfilled value, including
 property manipulation and method calls.
 
 ```javascript
-var ref = function (object) {
+var cast = function (object) {
     if (object && typeof object.promiseSend !== "undefined") {
         return object;
     }
@@ -898,8 +961,8 @@ var ref = function (object) {
                 return result;
             }
         }, function fallback(op) {
-            return Q.when(object, function (object) {
-                return Q.ref(object).promiseSend.apply(object, arguments);
+            return when(object, function (object) {
+                return cast(object).promiseSend.apply(object, arguments);
             });
         });
     }
@@ -947,9 +1010,9 @@ var defer = function () {
     return {
         resolve: function (_value) {
             if (pending) {
-                value = ref(_value);
+                value = cast(_value);
                 for (var i = 0, ii = pending.length; i < ii; i++) {
-                    enqueue(function () {
+                    asap(function () {
                         value.promiseSend.apply(value, pending[i]);
                     });
                 }
@@ -963,7 +1026,7 @@ var defer = function () {
                 if (pending) {
                     pending.push(args);
                 } else {
-                    enqueue(function () {
+                    asap(function () {
                         value.promiseSend.apply(value, args);
                     });
                 }
@@ -981,7 +1044,7 @@ all look very similar.
 ```javascript
 var get = function (object, name) {
     var result = defer();
-    ref(object).promiseSend("get", result.resolve, name);
+    cast(object).promiseSend("get", result.resolve, name);
     return result.promise;
 };
 
