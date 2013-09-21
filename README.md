@@ -32,7 +32,7 @@ All of this is likely to change when the war begins.
 1. [Four Words](four-words.md)
 1. Foreword
 1. Forward: What is a Promise
-1. A Graduated Tutorial
+1. [A Graduated Tutorial](tutorial.md)
 1. Handling Exceptions
 1. Debugging
     1. Long Traces
